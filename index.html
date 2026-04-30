@@ -103,10 +103,15 @@
             transition: background 0.3s;
             flex-wrap: wrap;
             gap: 5px;
+            user-select: none;
         }
         
         .phase-header:hover {
             background: rgba(255,255,255,0.1);
+        }
+        
+        .phase-header:not(.open) {
+            background: rgba(255,255,255,0.03);
         }
         
         .phase-title {
@@ -672,6 +677,7 @@
 
         let completedActions = {};
         let collapsedDays = {};
+        let collapsedPhases = {};
 
         function loadFromStorage() {
             const saved = localStorage.getItem('roadmapProgress');
@@ -682,11 +688,16 @@
             if (collapsed) {
                 collapsedDays = JSON.parse(collapsed);
             }
+            const phasesCollapsed = localStorage.getItem('roadmapPhasesCollapsed');
+            if (phasesCollapsed) {
+                collapsedPhases = JSON.parse(phasesCollapsed);
+            }
         }
 
         function saveToStorage() {
             localStorage.setItem('roadmapProgress', JSON.stringify(completedActions));
             localStorage.setItem('roadmapCollapsed', JSON.stringify(collapsedDays));
+            localStorage.setItem('roadmapPhasesCollapsed', JSON.stringify(collapsedPhases));
         }
 
         function toggleAction(dayNumber, actionIndex) {
@@ -735,10 +746,17 @@
         }
 
         function togglePhase(phaseId) {
-            const content = document.getElementById(`phase-${phaseId}`);
-            const header = document.querySelector(`#phase-${phaseId} .phase-header`);
-            content.classList.toggle('open');
-            header.classList.toggle('open');
+            if (collapsedPhases[phaseId]) {
+                delete collapsedPhases[phaseId];
+            } else {
+                collapsedPhases[phaseId] = true;
+            }
+            saveToStorage();
+            render();
+        }
+
+        function isPhaseCollapsed(phaseId) {
+            return collapsedPhases[phaseId] === true;
         }
 
         function render() {
@@ -759,9 +777,10 @@
                 totalCompleted += phaseCompleted;
                 totalActions += phaseTotal;
                 
+                const phaseIsCollapsed = isPhaseCollapsed(phase.id);
                 return `
                     <div class="phase phase-${phase.color}" id="phase-${phase.id}">
-                        <div class="phase-header open" onclick="togglePhase('${phase.id}')">
+                        <div class="phase-header ${phaseIsCollapsed ? '' : 'open'}" onclick="togglePhase('${phase.id}')">
                             <div class="phase-title">
                                 <span class="phase-badge">${phase.color === 'green' ? '🟢' : phase.color === 'yellow' ? '🟡' : phase.color === 'orange' ? '🟠' : '🔵'}</span>
                                 <span class="phase-name">${phase.name}</span>
@@ -769,10 +788,10 @@
                             </div>
                             <div style="display: flex; align-items: center; gap: 15px;">
                                 <span class="phase-progress">${phaseCompleted}/${phaseTotal}</span>
-                                <span class="toggle-icon">▼</span>
+                                <span class="toggle-icon">${phaseIsCollapsed ? '▶' : '▼'}</span>
                             </div>
                         </div>
-                        <div class="phase-content open">
+                        <div class="phase-content ${phaseIsCollapsed ? '' : 'open'}">
                             ${phase.days.map(day => {
                                 const { completed, total } = getDayProgress(day);
                                 const isComplete = isDayComplete(day);
@@ -817,6 +836,7 @@
             if (confirm('¿Estás seguro de que quieres reiniciar todo el progreso?')) {
                 completedActions = {};
                 collapsedDays = {};
+                collapsedPhases = {};
                 saveToStorage();
                 render();
             }
